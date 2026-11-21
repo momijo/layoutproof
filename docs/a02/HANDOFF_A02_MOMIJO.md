@@ -1,0 +1,7 @@
+# A02 evidence handoff
+
+The independent proof checker and bounded oracle have executable development tests. Measurement and publication remain blocked by the missing canonical `COMMON_OUTPUT_CONTRACT.md`, `PORTABLE_CASE_CORPUS.md`, `CASE_HASH_V1_TEST_VECTORS.tsv`, `OUTPUT_EVIDENCE_PROTOCOL.md`, `NON_TENSOR_EVIDENCE_PROTOCOL.md` and `OUTPUT_HASH_V1_*_VECTORS.tsv`.
+
+The next evidence stage needs the canonical files and their version or hashes before implementing the writer and codec checks. Register witnessed prospective selection before collecting confirmatory results. Route actual native tensor trials through the canonical tensor contract. Route standalone certificate trials through NTE1. Reproduce external comparators and complete the novelty kill-test before interpreting any result as an improvement. The planned proof index, rule coverage, timing figure and accepted/rejected table require independently validated runs. No external result files were created.
+
+The extent-polymorphic certificate covers signed permutations. The exact affine certificate extends coverage to concrete-shape slices, expand, squeeze and broadcast compositions. Shape-general preconditions and reshape certificates remain open, along with resource instrumentation, canonical benchmark export and GPU trials. The optional adapters validate specific FP32 cases against the pinned CPU engine surfaces. [Regression and replay scope](TEST_REPORT_A02_MOMIJO.md)

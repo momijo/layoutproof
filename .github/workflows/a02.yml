@@ -1,0 +1,29 @@
+name: A02 Mojo CPU
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          cache: true
+      - run: pixi install --locked
+      - run: pixi run --locked mojo --version
+      - run: pixi run --locked test-all
+      - run: pixi run --locked package
+      - run: pixi run --locked mojo run -I dist tests/a02_smoke.mojo
+      - name: Check benchmark admission
+        run: |
+          pixi run --locked research-a02 --check-only --case slice-mutant
+          result=0
+          pixi run --locked research-a02 --output-root dist/evidence || result=$?
+          test "$result" -eq 2
+          test ! -e dist/evidence

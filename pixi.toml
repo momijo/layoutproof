@@ -1,0 +1,57 @@
+[workspace]
+name = "momijo-layoutproof"
+version = "0.1.0"
+description = "Native Mojo research implementation of A02 LayoutProof"
+channels = ["https://conda.modular.com/max/", "conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+
+[dependencies]
+mojo = "==1.1.0"
+max = "==26.6.0"
+
+[tasks]
+package = '''bash -euo pipefail -c '
+  mkdir -p dist
+  test ! -L dist
+  rm -f dist/layoutproof.mojoc
+  stage=$(mktemp -d dist/.a02-stage.XXXXXX)
+  trap "rm -rf -- \"$stage\"" EXIT
+  mojo precompile -I src src/layoutproof -o "$stage/layoutproof.mojoc"
+  test -s "$stage/layoutproof.mojoc"
+  mv "$stage/layoutproof.mojoc" dist/layoutproof.mojoc
+' '''
+test-smoke = "mojo run -I src tests/a02_smoke.mojo"
+test-semantics = "mojo run -I src tests/a02_layout_proof.mojo"
+test-proof = "mojo run -I src tests/a02_certificate.mojo"
+test-affine = "mojo run -I src tests/a02_affine.mojo"
+test-all = { depends-on = ["test-smoke", "test-semantics", "test-proof", "test-affine"] }
+research-a02 = "mojo run -I src -O 3 benchmarks/research/a02_layout_proof.mojo"
+# Native test discovery invokes `pixi run mojo run -I src -I . TEST`.
+# Resolve the pinned external dependency for the adapter entry point only.
+mojo = '''bash -euo pipefail -c '
+  compiler="$CONDA_PREFIX/bin/mojo"
+  if [[ "${1:-}" == run ]]; then
+    for arg in "$@"; do
+      case "$arg" in
+        tests/a02_momijo_adapters.mojo|./tests/a02_momijo_adapters.mojo|"$PIXI_PROJECT_ROOT/tests/a02_momijo_adapters.mojo")
+          source_dir=${MOMIJO_SOURCE_DIR:-../../libraries/momijo}
+          revision=$(git -C "$source_dir" rev-parse --verify HEAD)
+          if [[ "$revision" != 3c9fc14fa31f7bee8c8c783e191ca63dded57544 ]]; then
+            echo "A02 adapters require Momijo revision 3c9fc14fa31f7bee8c8c783e191ca63dded57544" >&2
+            exit 1
+          fi
+          changes=$(git -C "$source_dir" status --porcelain -- src/momijo)
+          if [[ -n "$changes" ]]; then
+            echo "A02 adapters require a clean Momijo source tree" >&2
+            exit 1
+          fi
+          shift
+          exec "$compiler" run -I adapters -I "$source_dir/src" "$@"
+          ;;
+        *.mojo) break ;;
+      esac
+    done
+  fi
+  exec "$compiler" "$@"
+' --'''
+test-momijo = { depends-on = [{ task = "mojo", args = ["run", "-I", "src", "-I", ".", "tests/a02_momijo_adapters.mojo"] }] }

@@ -1,0 +1,6 @@
+.pixi/
+.cache/
+.tmp/
+dist/
+/research-output/
+/raw-evidence/
