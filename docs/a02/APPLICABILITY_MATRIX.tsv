@@ -1,0 +1,11 @@
+family	applicability	development_scope	evidence_status
+C00	CONDITIONAL	General and Light FP32 dense C reshape checked independently	NOT_RUN: canonical tensor corpus and output protocol required
+C01	REQUIRED	Model ranks 0–16; independent native CPU baseline boundary tests	NOT_RUN: canonical tensor evidence required
+C02	REQUIRED	Signed strides, zero strides, stepped slices and exact peer alias checks	NOT_RUN: canonical tensor evidence required
+C03	REQUIRED	Checked arithmetic and work-budget regressions	NOT_RUN: canonical evidence and agreed resource plan required
+C04	REQUIRED	Address, alias, finite-only, symbolic-only and manual variants	NOT_RUN: canonical evidence required
+C05	CONDITIONAL	Prospective holdout selection after method freeze	NOT_RUN: no witnessed holdout selection
+C06	REQUIRED	Local source-defined mutants and bounded replay	NOT_RUN: canonical evidence required
+C07	REQUIRED	Local toolchain and native CPU commands executed	NOT_RUN: no NTE1 qualification; GPU not exercised
+C08	REQUIRED	Native composition and mutation regressions plus exact affine replay	NOT_RUN: canonical corpus, schemas and evidence validation required
+C09	REQUIRED	Signed-axis, exact affine and bounded counterexample replay	NOT_RUN: NTE1 contract and witnessed fixture plan required
