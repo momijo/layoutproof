@@ -5,7 +5,8 @@
 """Independent symbolic certificate checker for signed axis permutations."""
 
 from std.collections import List
-from .ir import Kind, Program
+from .ir import Checks, Kind, Layout, Program, Reason, Status, Verdict
+from .verifier import decision, verify
 
 
 @fieldwise_init
@@ -60,6 +61,7 @@ def pulls_back(program: Program, output_axis: Int) -> AxisImage:
 
 
 def replay(reference: Program, candidate: Program, certificate: Certificate) -> Bool:
+    """Replay a fixed-rank map theorem. Mutable access requires separate admission."""
     # Each output axis selects one input extent. Its coordinate is either j
     # or extent - 1 - j. Equal axis images imply equal maps for every extent.
     if reference.writable != candidate.writable or len(certificate.image) != certificate.rank:
@@ -71,3 +73,14 @@ def replay(reference: Program, candidate: Program, certificate: Certificate) -> 
         if pulls_back(reference, axis) != expected or pulls_back(candidate, axis) != expected:
             return False
     return True
+
+
+def admit_symbolic_write(source: Layout, reference: Program, candidate: Program,
+                         certificate: Certificate, live_peers: List[Layout],
+                         cap: Int = 256) -> Verdict:
+    """Check concrete write admission against the supplied live peer views."""
+    if not reference.writable or not candidate.writable:
+        return decision(Status.REJECTED, Reason.PERMISSION, "write admission requires writable programs")
+    if len(source.shape) != certificate.rank or not replay(reference, candidate, certificate):
+        return decision(Status.FAIL, Reason.CERTIFICATE)
+    return verify(source, reference, candidate, live_peers, Checks.FULL, cap)

@@ -15,6 +15,9 @@ struct ProofResult(Movable):
     var reason: Reason
     var certificate: Optional[Certificate]
 
+    def requires_write_admission(self) -> Bool:
+        return self.status == Status.PASS and self.reason == Reason.CONDITIONAL_EQUIVALENCE
+
 
 def normalize(program: Program, rank: Int) -> Optional[List[AxisImage]]:
     var axes = List[AxisImage]()
@@ -65,7 +68,8 @@ def certify(reference: Program, candidate: Program, rank: Int) -> ProofResult:
     var certificate = Certificate(rank, left^)
     if not replay(reference, candidate, certificate):
         return ProofResult(Status.FAIL, Reason.CERTIFICATE, None)
-    return ProofResult(Status.PASS, Reason.EQUIVALENT, certificate^)
+    var reason = Reason.CONDITIONAL_EQUIVALENCE if reference.writable else Reason.EQUIVALENT
+    return ProofResult(Status.PASS, reason, certificate^)
 
 
 def manual_double_flip(reference: Program, candidate: Program, rank: Int) -> Bool:

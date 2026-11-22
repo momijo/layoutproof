@@ -71,6 +71,23 @@ def check_light() raises:
     assert_true(expanded.is_ok())
     var broadcast = expanded.payload.take()
     assert_equal(broadcast.layout.strides.get(1), 0)
+
+    var copy_shape = TensorShape[2].checked(pair(3, 2))
+    assert_true(copy_shape.is_ok())
+    var copied = tensor.reshape_copy[2](copy_shape.payload.take())
+    assert_true(copied.is_ok())
+    var materialized = copied.payload.take()
+    var disjoint = tensor.storage_regions_disjoint(materialized)
+    assert_true(disjoint.is_ok() and disjoint.payload.take())
+    assert_true(tensor.set(pair(0, 0), Float32(91)) == TensorStatus.OK)
+    var copied_first = materialized.get(pair(0, 0))
+    assert_true(copied_first.is_ok())
+    assert_equal(copied_first.payload.take(), Float32(0))
+    assert_true(materialized.set(pair(1, 1), Float32(71)) == TensorStatus.OK)
+    var source_value = tensor.get(pair(1, 0))
+    assert_true(source_value.is_ok())
+    assert_equal(source_value.payload.take(), Float32(3))
+    print("PASS: Momijo Light reshape copy uses disjoint storage and isolates writes")
     check_reversed_reshape()
 
 

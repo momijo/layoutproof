@@ -47,7 +47,18 @@ def check_program(source: Layout, program: Program, certificate: AffineCertifica
         ref op = program.ops[i]
         if len(op.dims) > 64:
             return decision(Status.UNKNOWN, Reason.WORK_LIMIT)
-        validate_step(shapes[i], op)
+        if op.kind == Kind.BROADCAST:
+            # Check the aligned extents independently. Point probes alone
+            # cannot detect an invalid shrinking broadcast to a singleton.
+            ref input_shape = shapes[i]
+            if len(op.dims) < len(input_shape):
+                raise Error("certificate broadcast shrinks rank")
+            for offset in range(1, len(input_shape) + 1):
+                var extent = input_shape[len(input_shape) - offset]
+                if extent != 1 and extent != op.dims[len(op.dims) - offset]:
+                    raise Error("certificate broadcast extent mismatch")
+        else:
+            validate_step(shapes[i], op)
         var shape = next_shape(shapes[i], op)
         if len(shape) > 64:
             return decision(Status.UNKNOWN, Reason.WORK_LIMIT)
