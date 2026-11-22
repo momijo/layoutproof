@@ -4,7 +4,7 @@
 
 """Lower transforms to checked strided metadata and output-to-input maps."""
 
-from std.collections import List
+from std.collections import List, Optional
 from .arithmetic import add, mul, count, decode, encode, dense, ordered_axis, validate
 from .ir import Kind, Layout, Op, Order, Program
 
@@ -171,7 +171,8 @@ def reshape_view_strides(source: Layout, target: List[Int], order: Order) raises
     return result^
 
 
-def lower(source: Layout, program: Program) raises -> Lowered:
+def lower_with_limits(source: Layout, program: Program, cell_limit: Int,
+                      rank_limit: Int) raises -> Optional[Lowered]:
     var current = source.copy()
     var stages = List[Stage]()
     for index in range(len(program.ops)):
@@ -205,4 +206,13 @@ def lower(source: Layout, program: Program) raises -> Lowered:
             current.shape = stage.shape.copy()
             stages.append(stage^)
         validate(current)
+        if len(current.shape) > rank_limit or count(current.shape) > cell_limit:
+            return None
     return Lowered(current^, stages^)
+
+
+def lower(source: Layout, program: Program) raises -> Lowered:
+    var result = lower_with_limits(source, program, Int.MAX, Int.MAX)
+    if not result:
+        raise Error("unbounded lowering exhausted its limits")
+    return result.take()

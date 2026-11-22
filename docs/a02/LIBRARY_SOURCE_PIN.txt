@@ -3,5 +3,5 @@ language=mojo
 source_repo=taleblou/momijo
 source_sha=3c9fc14fa31f7bee8c8c783e191ca63dded57544
 source_state=PR_HEAD_OR_LOCAL_BRANCH_NOT_ASSUMED_MERGED
-source_qualification=DEPENDENCY_NOT_YET_CI_VERIFIED
+source_qualification=CODE_CI_VERIFIED
 working_tree_changes_excluded_from_pin=0

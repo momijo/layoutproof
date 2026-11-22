@@ -7,10 +7,10 @@
 from std.sys import argv
 from std.sys.terminate import exit
 from layoutproof.a02.cases import affine_fixture, fixture
-from layoutproof.a02.ir import Status, Verdict
-from layoutproof.a02.affine_replay import admit_affine_write
+from layoutproof.a02.ir import Checks, Status, Verdict
+from layoutproof.a02.affine_replay import admit_affine_write, replay_affine_counterexample
 from layoutproof.a02.affine_solver import certify_affine
-from layoutproof.a02.verifier import verify
+from layoutproof.a02.verifier import replay_counterexample, verify
 
 
 @fieldwise_init
@@ -103,6 +103,13 @@ def run() raises -> Int:
     var result: Verdict
     if use_affine:
         var proved = certify_affine(workload.source, workload.reference, workload.candidate)
+        if proved.verdict.status == Status.FAIL:
+            if not proved.certificate or not replay_affine_counterexample(
+                workload.source, workload.reference, workload.candidate,
+                proved.certificate.take(), proved.verdict,
+            ):
+                print("ERROR ORACLE_DISAGREEMENT")
+                return 1
         if proved.requires_write_admission:
             result = admit_affine_write(workload.source, workload.reference, workload.candidate,
                                         proved.certificate.take(), workload.peers)
@@ -111,6 +118,12 @@ def run() raises -> Int:
             result = Verdict(verdict.status, verdict.reason, verdict.ordinal, verdict.other, verdict.detail.copy())
     else:
         result = verify(workload.source, workload.reference, workload.candidate, workload.peers)
+        if result.status == Status.FAIL and not replay_counterexample(
+            workload.source, workload.reference, workload.candidate, workload.peers,
+            Checks.FULL, result,
+        ):
+            print("ERROR ORACLE_DISAGREEMENT")
+            return 1
     print(result.status.code, result.reason.code, result.detail)
     if result.status != workload.expected or result.reason != workload.reason:
         return 1

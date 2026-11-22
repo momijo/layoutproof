@@ -4,10 +4,10 @@
 
 """Bounded cross-check and deterministic, independently replayed witnesses."""
 
-from std.collections import List, Set
+from std.collections import List, Optional, Set
 from .arithmetic import address, count, decode, equal, validate
 from .ir import Checks, Layout, Order, Program, Reason, Status, Verdict
-from .lowering import Lowered, lower
+from .lowering import Lowered, lower, lower_with_limits
 from .oracle import Frame, first_alias, fits, interpret_bounded
 
 
@@ -160,16 +160,91 @@ def verify(source: Layout, reference: Program, candidate: Program, peers: List[L
         return decision(Status.ERROR, Reason.ORACLE_DISAGREEMENT, String(e))
 
 
+def first_lowered_conflict(mapping: Layout, peers: List[Layout]) raises -> Tuple[Int, Int]:
+    var peer_offsets = Set[Int]()
+    for peer in peers:
+        if mapping.storage == peer.storage:
+            for n in range(count(peer.shape)):
+                peer_offsets.add(address(peer, decode(peer.shape, n, Order.C)))
+    var offsets = List[Int]()
+    for n in range(count(mapping.shape)):
+        offsets.append(address(mapping, decode(mapping.shape, n, Order.C)))
+    for i in range(len(offsets)):
+        for j in range(i + 1, len(offsets)):
+            if offsets[i] == offsets[j]:
+                return (i, j)
+        if offsets[i] in peer_offsets:
+            return (i, -1)
+    return (-1, -1)
+
+
+def replay_lowered_mismatch(source: Layout, left: Lowered, right: Lowered, left_write: Bool,
+                            right_write: Bool, peers: List[Layout], checks: Checks) raises -> Verdict:
+    if not equal(left.output.shape, right.output.shape):
+        return decision(Status.FAIL, Reason.DOMAIN)
+    var cells = count(left.output.shape)
+    var same_storage = left.output.storage == right.output.storage
+    if checks.address and cells == 0 and not same_storage:
+        return decision(Status.FAIL, Reason.ADDRESS, "different empty-result storage")
+    for n in range(cells):
+        var point = decode(left.output.shape, n, Order.C)
+        if left.lineage(source, point) != right.lineage(source, point):
+            return decision(Status.FAIL, Reason.LOGICAL, ordinal=n)
+        # A common source coordinate denotes the same value token.
+        if checks.address and (not same_storage or address(left.output, point) != address(right.output, point)):
+            return decision(Status.FAIL, Reason.ADDRESS, ordinal=n)
+    if left_write != right_write:
+        return decision(Status.FAIL, Reason.PERMISSION)
+    if checks.alias and right_write:
+        if not right.output.write_capable:
+            return decision(Status.FAIL, Reason.PERMISSION, "candidate storage is read-only")
+        var conflict = first_lowered_conflict(right.output, peers)
+        if conflict[0] >= 0:
+            return decision(Status.FAIL, Reason.ALIAS, "candidate write overlaps", conflict[0], conflict[1])
+    return decision(Status.PASS, Reason.EQUIVALENT)
+
+
 def replay_counterexample(source: Layout, reference: Program, candidate: Program,
                           peers: List[Layout], checks: Checks, witness: Verdict,
                           cap: Int = 256) -> Bool:
-    var replay = verify(source, reference, candidate, peers, checks, cap, finite_only=True)
-    return (
-        replay.status == Status.FAIL
-        and witness.status == Status.FAIL
-        and replay.reason == witness.reason
-        and replay.reason != Reason.ORACLE_DISAGREEMENT
-        and replay.ordinal == witness.ordinal
-        and replay.other == witness.other
-        and replay.detail == witness.detail
-    )
+    # The bounded verifier reports witnesses from its forward cell interpreter.
+    # Reconstruct them here from checked metadata and backward coordinate maps.
+    if witness.status != Status.FAIL or len(peers) > 16:
+        return False
+    if not budgeted(source, reference, cap) or not budgeted(source, candidate, cap):
+        return False
+    try:
+        for peer in peers:
+            if len(peer.shape) > 64 or len(peer.strides) > 64:
+                return False
+        validate_inputs(source, peers)
+        if count(source.shape) > cap:
+            return False
+        for peer in peers:
+            if count(peer.shape) > cap:
+                return False
+        var original = lower_with_limits(source, reference, cap, 64)
+        if not original:
+            return False
+        var left = original.take()
+        if checks.alias and reference.writable:
+            if not left.output.write_capable or first_lowered_conflict(left.output, peers)[0] >= 0:
+                return False
+        var replacement: Optional[Lowered]
+        try:
+            replacement = lower_with_limits(source, candidate, cap, 64)
+        except:
+            # Definedness is structural. Each path supplies its own diagnostic text.
+            return witness.reason == Reason.INVALID_CANDIDATE and witness.ordinal == -1 and witness.other == -1
+        if not replacement:
+            return False
+        var right = replacement.take()
+        var replay = replay_lowered_mismatch(source, left, right, reference.writable,
+                                             candidate.writable, peers, checks)
+        return (
+            replay.status == Status.FAIL and replay.reason == witness.reason
+            and replay.ordinal == witness.ordinal and replay.other == witness.other
+            and replay.detail == witness.detail
+        )
+    except:
+        return False

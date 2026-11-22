@@ -26,7 +26,8 @@ test-proof = "mojo run -I src tests/a02_certificate.mojo"
 test-affine = "mojo run -I src tests/a02_affine.mojo"
 test-redteam = "mojo run -I src tests/a02_redteam_regressions.mojo"
 test-symbolic-admission = "mojo run -I src tests/a02_symbolic_admission.mojo"
-test-all = { depends-on = ["test-smoke", "test-semantics", "test-proof", "test-affine", "test-redteam", "test-symbolic-admission"] }
+test-bounded-replay = "mojo run -I src tests/a02_bounded_replay.mojo"
+test-all = { depends-on = ["test-smoke", "test-semantics", "test-proof", "test-affine", "test-redteam", "test-symbolic-admission", "test-bounded-replay"] }
 research-a02 = "mojo run -I src -O 3 benchmarks/research/a02_layout_proof.mojo"
 # Native test discovery invokes `pixi run mojo run -I src -I . TEST`.
 # Resolve the pinned external dependency for the adapter entry point only.
