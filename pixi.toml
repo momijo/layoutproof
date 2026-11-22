@@ -24,7 +24,8 @@ test-smoke = "mojo run -I src tests/a02_smoke.mojo"
 test-semantics = "mojo run -I src tests/a02_layout_proof.mojo"
 test-proof = "mojo run -I src tests/a02_certificate.mojo"
 test-affine = "mojo run -I src tests/a02_affine.mojo"
-test-all = { depends-on = ["test-smoke", "test-semantics", "test-proof", "test-affine"] }
+test-redteam = "mojo run -I src tests/a02_redteam_regressions.mojo"
+test-all = { depends-on = ["test-smoke", "test-semantics", "test-proof", "test-affine", "test-redteam"] }
 research-a02 = "mojo run -I src -O 3 benchmarks/research/a02_layout_proof.mojo"
 # Native test discovery invokes `pixi run mojo run -I src -I . TEST`.
 # Resolve the pinned external dependency for the adapter entry point only.

@@ -19,6 +19,18 @@ jobs:
       - run: pixi install --locked
       - run: pixi run --locked mojo --version
       - run: pixi run --locked test-all
+      - name: Check out the pinned Momijo library source
+        uses: actions/checkout@v4
+        with:
+          repository: taleblou/momijo
+          ref: 3c9fc14fa31f7bee8c8c783e191ca63dded57544
+          path: .ci-momijo
+          sparse-checkout: src/momijo
+          persist-credentials: false
+      - name: Test the native Momijo General and Light adapters
+        env:
+          MOMIJO_SOURCE_DIR: ${{ github.workspace }}/.ci-momijo
+        run: pixi run --locked test-momijo
       - run: pixi run --locked package
       - run: pixi run --locked mojo run -I dist tests/a02_smoke.mojo
       - name: Check benchmark admission

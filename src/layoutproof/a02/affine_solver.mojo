@@ -13,10 +13,16 @@ from .oracle import fits
 from .verifier import budgeted, decision, validate_inputs
 
 
-@fieldwise_init
 struct AffineResult(Movable):
     var verdict: Verdict
     var certificate: Optional[AffineCertificate]
+    var requires_write_admission: Bool
+
+    def __init__(out self, var verdict: Verdict, var certificate: Optional[AffineCertificate],
+                 requires_write_admission: Bool = False):
+        self.verdict = verdict^
+        self.certificate = certificate^
+        self.requires_write_admission = requires_write_admission
 
 
 def propose(source: Layout, mapping: Lowered, writable: Bool) raises -> AffineCertificate:
@@ -63,6 +69,13 @@ def certify_affine(source: Layout, reference: Program, candidate: Program) -> Af
         var result = check_program(source, candidate, certificate)
         if result.status != Status.PASS and result.status != Status.FAIL:
             return AffineResult(result^, None)
+        if result.status == Status.PASS and reference.writable:
+            return AffineResult(
+                decision(Status.PASS, Reason.CONDITIONAL_EQUIVALENCE,
+                         "map equality requires separate admission against the current live peers"),
+                certificate^,
+                True,
+            )
         # On mismatch this is the validated reference table, not a proof of equality.
         return AffineResult(result^, certificate^)
     except e:

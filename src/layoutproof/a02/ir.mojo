@@ -110,6 +110,7 @@ struct Status(ImplicitlyCopyable, Equatable):
 struct Reason(ImplicitlyCopyable, Equatable):
     var code: StaticString
     comptime EQUIVALENT = Self("EQUIVALENT")
+    comptime CONDITIONAL_EQUIVALENCE = Self("CONDITIONAL_EQUIVALENCE")
     comptime INVALID_INPUT = Self("INVALID_INPUT")
     comptime INVALID_REFERENCE = Self("INVALID_REFERENCE")
     comptime INVALID_CANDIDATE = Self("INVALID_CANDIDATE")

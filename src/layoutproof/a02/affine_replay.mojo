@@ -6,9 +6,9 @@
 
 from std.collections import List
 from .arithmetic import count, equal, validate
-from .ir import Kind, Layout, Program, Reason, Status, Verdict
+from .ir import Checks, Kind, Layout, Program, Reason, Status, Verdict
 from .oracle import digits, lookup, next_shape, row_number, validate_step
-from .verifier import decision
+from .verifier import decision, verify
 
 
 @fieldwise_init
@@ -97,6 +97,7 @@ def check_program(source: Layout, program: Program, certificate: AffineCertifica
 
 def replay_affine(source: Layout, reference: Program, candidate: Program,
                   certificate: AffineCertificate) -> Bool:
+    """Replay map equality. For mutable access, call admit_affine_write separately."""
     # Every admitted transform is affine in its output coordinates. Agreement
     # at the origin and along the active axes fixes all affine coefficients.
     try:
@@ -105,6 +106,17 @@ def replay_affine(source: Layout, reference: Program, candidate: Program,
         )
     except:
         return False
+
+
+def admit_affine_write(source: Layout, reference: Program, candidate: Program,
+                       certificate: AffineCertificate, live_peers: List[Layout],
+                       cap: Int = 256) -> Verdict:
+    """Check writable admission for the supplied snapshot of all live peer views."""
+    if not reference.writable or not candidate.writable:
+        return decision(Status.REJECTED, Reason.PERMISSION, "write admission requires writable programs")
+    if not replay_affine(source, reference, candidate, certificate):
+        return decision(Status.FAIL, Reason.CERTIFICATE)
+    return verify(source, reference, candidate, live_peers, Checks.FULL, cap)
 
 
 def replay_affine_counterexample(source: Layout, reference: Program, candidate: Program,

@@ -6,7 +6,7 @@
 
 from std.collections import List
 from .ir import Kind, Layout, Op, Order, Program
-from .arithmetic import count, validate
+from .arithmetic import add, count, mul, validate
 
 
 @fieldwise_init
@@ -216,17 +216,31 @@ def interpret_bounded(layout: Layout, program: Program) raises -> Frame:
         var size = cardinality(shape)
         if op.kind == Kind.RESHAPE and size != len(frame.cells):
             raise Error("interpreter reshape count mismatch")
-        if op.kind == Kind.RESHAPE and not op.materialize and size > 0:
-            # Independently check dense view eligibility in the requested order.
-            var first = frame.cells[0].physical
-            for i in range(size):
-                var row = order_to_row(frame.shape, i, op.order)
-                if frame.cells[row].physical - first != i:
-                    raise Error("interpreter reshape is not dense in the requested order")
+        var view_reshape = op.kind == Kind.RESHAPE and not op.materialize and size > 0
+        var coefficients = List[Int]()
+        var origin = 0
+        if view_reshape:
+            # Derive address coefficients from actual cells and check every
+            # target coordinate, independently of the lowerer's block matching.
+            origin = frame.cells[0].physical
+            coefficients = List[Int](length=len(shape), fill=0)
+            var unit = List[Int](length=len(shape), fill=0)
+            for axis in range(len(shape)):
+                if shape[axis] > 1:
+                    unit[axis] = 1
+                    var old = lookup(frame.shape, shape, unit, row_number(shape, unit), op)
+                    coefficients[axis] = frame.cells[old].physical - origin
+                    unit[axis] = 0
         for n in range(size):
             var index = digits(shape, n)
             var old = lookup(frame.shape, shape, index, n, op)
             var cell = frame.cells[old]
+            if view_reshape:
+                var expected = origin
+                for axis in range(len(index)):
+                    expected = add(expected, mul(index[axis], coefficients[axis]))
+                if cell.physical != expected:
+                    raise Error("interpreter reshape address map is not affine")
             if op.kind == Kind.RESHAPE and op.materialize:
                 # Re-encode independently without using the lowering's dense strides.
                 if op.order == Order.C:

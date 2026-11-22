@@ -8,6 +8,7 @@ from std.sys import argv
 from std.sys.terminate import exit
 from layoutproof.a02.cases import affine_fixture, fixture
 from layoutproof.a02.ir import Status, Verdict
+from layoutproof.a02.affine_replay import admit_affine_write
 from layoutproof.a02.affine_solver import certify_affine
 from layoutproof.a02.verifier import verify
 
@@ -102,8 +103,12 @@ def run() raises -> Int:
     var result: Verdict
     if use_affine:
         var proved = certify_affine(workload.source, workload.reference, workload.candidate)
-        ref verdict = proved.verdict
-        result = Verdict(verdict.status, verdict.reason, verdict.ordinal, verdict.other, verdict.detail.copy())
+        if proved.requires_write_admission:
+            result = admit_affine_write(workload.source, workload.reference, workload.candidate,
+                                        proved.certificate.take(), workload.peers)
+        else:
+            ref verdict = proved.verdict
+            result = Verdict(verdict.status, verdict.reason, verdict.ordinal, verdict.other, verdict.detail.copy())
     else:
         result = verify(workload.source, workload.reference, workload.candidate, workload.peers)
     print(result.status.code, result.reason.code, result.detail)

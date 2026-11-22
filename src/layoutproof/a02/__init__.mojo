@@ -8,5 +8,5 @@ from .oracle import interpret
 from .replay import Certificate, replay
 from .solver import certify
 from .verifier import replay_counterexample, verify
-from .affine_replay import AffineCertificate, replay_affine, replay_affine_counterexample
+from .affine_replay import AffineCertificate, admit_affine_write, replay_affine, replay_affine_counterexample
 from .affine_solver import certify_affine

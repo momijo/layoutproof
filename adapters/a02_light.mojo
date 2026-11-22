@@ -71,3 +71,48 @@ def check_light() raises:
     assert_true(expanded.is_ok())
     var broadcast = expanded.payload.take()
     assert_equal(broadcast.layout.strides.get(1), 0)
+    check_reversed_reshape()
+
+
+def check_reversed_reshape() raises:
+    var source = Layout([3], [-1], 2, 3, 0, False)
+    var expected = interpret(source, Program([Op.reshape([1, 3], Order.C)], False))
+    var dims = TensorShape[1].checked(StaticRankArray[1](3))
+    assert_true(dims.is_ok())
+    var made = ones[1](dims.payload.take())
+    assert_true(made.is_ok())
+    var owner = made.payload.take()
+    for i in range(3):
+        assert_true(owner.set(StaticRankArray[1](i), Float32(i + 1)) == TensorStatus.OK)
+    var flipped = owner.flip(0)
+    assert_true(flipped.is_ok())
+    var reverse = flipped.payload.take()
+    var target = TensorShape[2].checked(pair(1, 3))
+    assert_true(target.is_ok())
+    var reshaped = reverse.reshape_view[2](target.payload.value())
+    assert_true(reshaped.is_ok())
+    var view = reshaped.payload.take()
+    for i in range(3):
+        var index = pair(0, i)
+        var offset = view.layout.physical_offset(index)
+        var value = view.get(index)
+        assert_true(offset.is_ok() and value.is_ok())
+        assert_equal(offset.payload.take(), 2 - i)
+        assert_equal(expected.cells[i].physical, 2 - i)
+        assert_equal(value.payload.take(), Float32(3 - i))
+
+    var strides = view.layout.strides
+    var origin = view.layout.offset
+    var writable = owner.mut_view()
+    assert_true(writable.is_ok())
+    var base = writable.payload.take()
+    var selected = base.as_strided_mut_view[2](target.payload.value(), strides, origin)
+    assert_true(selected.is_ok())
+    var signed = selected.payload.take()
+    assert_true(signed.set(pair(0, 0), Float32(91)) == TensorStatus.OK)
+    assert_true(signed.set(pair(0, 1), Float32(71)) == TensorStatus.OK)
+    for i in range(3):
+        var readback = base.get(StaticRankArray[1](i))
+        assert_true(readback.is_ok())
+        assert_equal(readback.payload.take(), [Float32(1), Float32(71), Float32(91)][i])
+    print("PASS: Momijo Light reverse reshape addresses and signed write-through")

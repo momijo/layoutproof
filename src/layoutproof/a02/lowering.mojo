@@ -5,7 +5,7 @@
 """Lower transforms to checked strided metadata and output-to-input maps."""
 
 from std.collections import List
-from .arithmetic import add, mul, count, decode, encode, dense, validate
+from .arithmetic import add, mul, count, decode, encode, dense, ordered_axis, validate
 from .ir import Kind, Layout, Op, Order, Program
 
 
@@ -128,6 +128,49 @@ def lower_axes(input: List[Int], op: Op) raises -> Stage:
     return Stage(shape^, axes^, False, Order.C)
 
 
+def reshape_view_strides(source: Layout, target: List[Int], order: Order) raises -> List[Int]:
+    var result = List[Int](length=len(target), fill=0)
+    if count(target) <= 1:
+        return result^
+    var old_axes = List[Int]()
+    var new_axes = List[Int]()
+    for i in range(len(source.shape)):
+        var axis = ordered_axis(len(source.shape), i, order)
+        if source.shape[axis] > 1:
+            old_axes.append(axis)
+    for i in range(len(target)):
+        var axis = ordered_axis(len(target), i, order)
+        if target[axis] > 1:
+            new_axes.append(axis)
+
+    # A target dimension may split a linear block but cannot cross a stride break.
+    var old = 0
+    var new = 0
+    while old < len(old_axes):
+        var stride = source.strides[old_axes[old]]
+        var block = source.shape[old_axes[old]]
+        old += 1
+        while old < len(old_axes):
+            var axis = old_axes[old]
+            if source.strides[axis] != mul(stride, block):
+                break
+            block = mul(block, source.shape[axis])
+            old += 1
+        var consumed = 1
+        while consumed < block:
+            if new >= len(new_axes):
+                raise Error("reshape crosses a stride break")
+            var axis = new_axes[new]
+            result[axis] = mul(stride, consumed)
+            consumed = mul(consumed, target[axis])
+            new += 1
+        if consumed != block:
+            raise Error("reshape crosses a stride break")
+    if new != len(new_axes):
+        raise Error("reshape leaves unmatched axes")
+    return result^
+
+
 def lower(source: Layout, program: Program) raises -> Lowered:
     var current = source.copy()
     var stages = List[Stage]()
@@ -144,12 +187,9 @@ def lower(source: Layout, program: Program) raises -> Lowered:
                 current.capacity = size
                 current.offset = 0
                 current.write_capable = True
-            elif size > 0:
-                var expected = dense(current.shape, op.order)
-                for i in range(len(expected)):
-                    if current.shape[i] > 1 and current.strides[i] != expected[i]:
-                        raise Error("reshape requires ordered dense view or explicit materialization")
-            current.strides = dense(op.dims, op.order)
+                current.strides = dense(op.dims, op.order)
+            else:
+                current.strides = reshape_view_strides(current, op.dims, op.order)
             current.shape = op.dims.copy()
             stages.append(Stage(op.dims.copy(), [], True, op.order))
         else:
