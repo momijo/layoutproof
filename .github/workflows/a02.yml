@@ -1,0 +1,51 @@
+name: A02 Mojo CPU
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Mojo CPU tests and AOT build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          cache: true
+      - name: Check native validation script syntax
+        run: bash -n scripts/verify_native.sh
+      - run: pixi install --locked
+      - run: pixi run --locked mojo --version
+      - name: Check out the exact pinned Momijo library source
+        uses: actions/checkout@v4
+        with:
+          repository: taleblou/momijo
+          ref: 3c9fc14fa31f7bee8c8c783e191ca63dded57544
+          path: .ci-momijo
+          sparse-checkout: src/momijo
+          persist-credentials: false
+      - name: Full validation - proof model AND both real Momijo engines
+        env:
+          MOMIJO_SOURCE_DIR: ${{ github.workspace }}/.ci-momijo
+        run: |
+          output=$(pixi run --locked test-full)
+          printf '%s\n' "$output"
+          grep -Fq 'PASS: Momijo General FP32 owned C-order reshape' <<<"$output"
+          grep -Fq 'PASS: Momijo Light FP32 transpose, negative stride and broadcast' <<<"$output"
+      - run: pixi run --locked package
+      - run: pixi run --locked mojo run -I dist tests/a02_smoke.mojo
+      - name: Check benchmark admission
+        run: |
+          pixi run --locked research-a02 --check-only --case slice-mutant
+          misuse_result=0
+          pixi run --locked research-a02 --check-only --output-root dist/evidence || misuse_result=$?
+          test "$misuse_result" -eq 1
+          test ! -e dist/evidence
+          result=0
+          pixi run --locked research-a02 --output-root dist/evidence || result=$?
+          test "$result" -eq 2
+          test ! -e dist/evidence
